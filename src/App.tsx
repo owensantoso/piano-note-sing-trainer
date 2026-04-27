@@ -312,11 +312,13 @@ export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFrom
   return (
     <main className="app-shell" aria-labelledby="app-title">
       <section className="hero-panel" aria-label="Practice preview">
-        <p className="eyebrow">Sing first, then play</p>
-        <h1 id="app-title">Find the note you hear inside.</h1>
-        <p className="intro">
-          A mic-only practice loop for singing one note, playing one piano note, and learning whether the piano landed high, low, or right on target.
-        </p>
+        <div className="hero-copy">
+          <p className="eyebrow">Sing first, then play</p>
+          <h1 id="app-title">Find the note you hear inside.</h1>
+          <p className="intro">
+            A mic-only practice loop for singing one note, playing one piano note, and learning whether the piano landed high, low, or right on target.
+          </p>
+        </div>
 
         <div className="pitch-arena" aria-label="Pitch arena preview">
           <div className="pitch-lane" aria-hidden="true">
