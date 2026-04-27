@@ -16,7 +16,9 @@ export type PracticeFlowState =
       playedNoteLabel: string;
       comparison: SemitoneFeedback;
     }
-  | { phase: 'unclearInput' };
+  | { phase: 'unclearInput' }
+  | { phase: 'captureTimeout' }
+  | { phase: 'captureError' };
 
 export function startPracticeFlow(): PracticeFlowState {
   return { phase: 'checkingSupport' };
@@ -67,6 +69,14 @@ export function capturePianoNote(
 
 export function markUnclearInput(): PracticeFlowState {
   return { phase: 'unclearInput' };
+}
+
+export function markCaptureTimeout(): PracticeFlowState {
+  return { phase: 'captureTimeout' };
+}
+
+export function markCaptureError(): PracticeFlowState {
+  return { phase: 'captureError' };
 }
 
 export function retryPracticeFlow(): PracticeFlowState {

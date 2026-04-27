@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   capturePianoNote,
   captureSungNote,
+  markCaptureError,
+  markCaptureTimeout,
   markMicPermission,
   markMicSupport,
   markUnclearInput,
@@ -94,6 +96,18 @@ describe('practiceFlow', () => {
   it('records unclear microphone input so the singer can retry', () => {
     expect(markUnclearInput()).toEqual({
       phase: 'unclearInput'
+    });
+  });
+
+  it('records capture timeout separately from unclear pitch input', () => {
+    expect(markCaptureTimeout()).toEqual({
+      phase: 'captureTimeout'
+    });
+  });
+
+  it('records capture errors separately from unclear pitch input', () => {
+    expect(markCaptureError()).toEqual({
+      phase: 'captureError'
     });
   });
 

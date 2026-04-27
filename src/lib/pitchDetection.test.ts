@@ -132,7 +132,35 @@ describe('captureSungNoteFromMicrophone', () => {
       'pitch_frame_summary',
       'capture_finished'
     ]);
+    expect(events[2]?.attrs).toEqual({ sample_rate: 44_100, fft_size: 2048, resumed_from_suspended: false });
     expect(events.at(-1)?.attrs).toEqual({ captured: true, midi_note: 69, timed_out: false });
+  });
+
+  it('resumes a suspended audio context before analysing microphone frames', async () => {
+    const { stream } = createMediaStream();
+    const audio = createAudioPieces([
+      { frequency: 440, confidence: 0.94 },
+      { frequency: 441, confidence: 0.93 }
+    ]);
+    const resume = vi.fn(async () => undefined);
+    const audioContext = {
+      ...audio.audioContext,
+      state: 'suspended' as const,
+      resume
+    };
+    const events: SungNoteCaptureEvent[] = [];
+
+    const result = await captureSungNoteFromMicrophone({
+      getUserMedia: vi.fn(async () => stream),
+      createAudioContext: () => audioContext,
+      detector: audio.detector,
+      stableFrameCount: 2,
+      onEvent: (event) => events.push(event)
+    });
+
+    expect(result).toEqual({ status: 'captured', midiNote: 69, noteLabel: 'A4' });
+    expect(resume).toHaveBeenCalledTimes(1);
+    expect(events[2]?.attrs).toEqual({ sample_rate: 44_100, fft_size: 2048, resumed_from_suspended: true });
   });
 
   it('returns unclear after the frame budget is exhausted without a stable note', async () => {
@@ -164,6 +192,29 @@ describe('captureSungNoteFromMicrophone', () => {
       type: 'capture_unclear',
       attrs: { accepted_frame_count: 2, rejected_frame_count: 1, timed_out: false }
     });
+  });
+
+  it('keeps listening long enough for a delayed sung note with the default frame budget', async () => {
+    const { stream, stop } = createMediaStream();
+    const delayedFrames: PitchDetectionResult[] = [
+      ...Array.from({ length: 60 }, () => null),
+      { frequency: 440, confidence: 0.94 },
+      { frequency: 440, confidence: 0.93 },
+      { frequency: 441, confidence: 0.94 }
+    ];
+    const audio = createAudioPieces(delayedFrames);
+
+    const result = await captureSungNoteFromMicrophone({
+      getUserMedia: vi.fn(async () => stream),
+      createAudioContext: () => audio.audioContext,
+      detector: audio.detector,
+      now: () => 0,
+      waitForNextFrame: async () => undefined
+    });
+
+    expect(result).toEqual({ status: 'captured', midiNote: 69, noteLabel: 'A4' });
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(audio.detector.detect).toHaveBeenCalledTimes(63);
   });
 
   it('emits a frame summary before capture errors when analysis has started', async () => {

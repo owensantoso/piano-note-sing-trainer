@@ -48,7 +48,7 @@ export type SungNoteCaptureEvent = {
 };
 
 type AudioContextLike = Pick<AudioContext, 'sampleRate' | 'createAnalyser' | 'createMediaStreamSource'> &
-  Partial<Pick<AudioContext, 'close' | 'suspend'>>;
+  Partial<Pick<AudioContext, 'close' | 'resume' | 'state' | 'suspend'>>;
 
 export type CaptureSungNoteOptions = {
   getUserMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
@@ -65,8 +65,8 @@ export type CaptureSungNoteOptions = {
 
 const DEFAULT_MIN_CONFIDENCE = 0.8;
 const DEFAULT_STABLE_FRAME_COUNT = 3;
-const DEFAULT_MAX_FRAMES = 48;
-const DEFAULT_MAX_CAPTURE_MS = 2_000;
+const DEFAULT_MAX_FRAMES = 180;
+const DEFAULT_MAX_CAPTURE_MS = 4_000;
 
 export function createStablePitchCapture({
   minConfidence = DEFAULT_MIN_CONFIDENCE,
@@ -249,13 +249,19 @@ export async function captureSungNoteFromMicrophone({
     onEvent?.({ type: 'stream_opened', attrs: { track_count: stream.getTracks().length } });
 
     audioContext = createAudioContext();
+    const wasSuspended = audioContext.state === 'suspended';
+
+    if (wasSuspended && typeof audioContext.resume === 'function') {
+      await audioContext.resume().catch(() => undefined);
+    }
+
     const analyser = audioContext.createAnalyser();
     analyser.fftSize = 2048;
     const source = audioContext.createMediaStreamSource(stream);
     source.connect(analyser);
     onEvent?.({
       type: 'audio_context_created',
-      attrs: { sample_rate: audioContext.sampleRate, fft_size: analyser.fftSize }
+      attrs: { sample_rate: audioContext.sampleRate, fft_size: analyser.fftSize, resumed_from_suspended: wasSuspended }
     });
 
     const buffer = new Float32Array(analyser.fftSize);

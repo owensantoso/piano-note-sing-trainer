@@ -43,7 +43,7 @@ describe('App practice state preview', () => {
 
     await user.click(screen.getByRole('button', { name: /start practice/i }));
 
-    expect(await screen.findByText('Listening for your sung note')).toBeInTheDocument();
+    expect(await screen.findByText('Ready to capture your sung note')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /capture sung note/i })).toBeInTheDocument();
     expect(getUserMedia).toHaveBeenCalledWith({
       audio: {
@@ -187,6 +187,36 @@ describe('App practice state preview', () => {
     expect(screen.getByText('I could not hear one clear note')).toBeInTheDocument();
   });
 
+  it('shows timeout guidance when sung-note capture runs out of listening time', async () => {
+    const user = userEvent.setup();
+    mockGrantedMicrophone();
+    const captureSungNoteFromMicrophone = vi.fn(async () => ({ status: 'timeout' as const }));
+
+    render(<App captureSungNoteFromMicrophone={captureSungNoteFromMicrophone} />);
+
+    await user.click(screen.getByRole('button', { name: /start practice/i }));
+    await user.click(await screen.findByRole('button', { name: /capture sung note/i }));
+
+    expect(screen.getByText('Capture timed out before one stable note')).toBeInTheDocument();
+    expect(screen.getByText(/sing or play one steady note right away/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
+  });
+
+  it('shows microphone failure guidance when sung-note capture errors', async () => {
+    const user = userEvent.setup();
+    mockGrantedMicrophone();
+    const captureSungNoteFromMicrophone = vi.fn(async () => ({ status: 'error' as const }));
+
+    render(<App captureSungNoteFromMicrophone={captureSungNoteFromMicrophone} />);
+
+    await user.click(screen.getByRole('button', { name: /start practice/i }));
+    await user.click(await screen.findByRole('button', { name: /capture sung note/i }));
+
+    expect(screen.getByText('Microphone capture failed')).toBeInTheDocument();
+    expect(screen.getByText(/check mic permission/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
+  });
+
 
 
   it('ignores repeated sung-note capture taps while a capture is already running', async () => {
@@ -276,11 +306,11 @@ describe('App practice state preview', () => {
     render(<App />);
 
     await user.click(screen.getByRole('button', { name: /start practice/i }));
-    await screen.findByText('Listening for your sung note');
+    await screen.findByText('Ready to capture your sung note');
     await user.click(screen.getByRole('button', { name: /mark unclear/i }));
     await user.click(screen.getByRole('button', { name: /try again/i }));
 
-    await screen.findByText('Listening for your sung note');
+    await screen.findByText('Ready to capture your sung note');
     expect(getUserMedia).toHaveBeenCalledTimes(2);
   });
 
@@ -301,7 +331,7 @@ describe('App practice state preview', () => {
 
     await user.click(screen.getByRole('button', { name: /try again/i }));
 
-    await screen.findByText('Listening for your sung note');
+    await screen.findByText('Ready to capture your sung note');
     expect(getUserMedia).toHaveBeenCalledTimes(2);
   });
 
@@ -312,7 +342,7 @@ describe('App practice state preview', () => {
     render(<App />);
 
     await user.click(screen.getByRole('button', { name: /start practice/i }));
-    await screen.findByText('Listening for your sung note');
+    await screen.findByText('Ready to capture your sung note');
 
     const events = await exportDiagnosticEvents(user);
 

@@ -14,6 +14,8 @@ import {
 import {
   capturePianoNote,
   captureSungNote,
+  markCaptureError,
+  markCaptureTimeout,
   markMicPermission,
   markMicSupport,
   markUnclearInput,
@@ -42,16 +44,47 @@ function getStatusText(state: PracticeFlowState): string {
     case 'unsupported':
       return 'This browser does not support microphone practice';
     case 'singing':
-      return 'Listening for your sung note';
+      return 'Ready to capture your sung note';
     case 'singCaptured':
       return `Captured ${state.sungNoteLabel}`;
     case 'pianoCompared':
       return formatComparisonSummary(state.comparison.direction, state.comparison.semitones);
     case 'unclearInput':
       return 'I could not hear one clear note';
+    case 'captureTimeout':
+      return 'Capture timed out before one stable note';
+    case 'captureError':
+      return 'Microphone capture failed';
     case 'idle':
       return 'Ready for a voice-first practice run';
   }
+}
+
+function getStatusHelpText(state: PracticeFlowState): string {
+  switch (state.phase) {
+    case 'permissionDenied':
+      return 'Enable microphone permission for this site in your browser, then try again.';
+    case 'captureTimeout':
+      return 'Tap capture, then sing or play one steady note right away for a few seconds.';
+    case 'captureError':
+      return 'Check mic permission, close other audio apps, reload, and export diagnostics if it repeats.';
+    case 'singing':
+      return 'Tap capture when you are ready; the app listens for one steady note.';
+    default:
+      return 'Capture listens briefly, then stops microphone tracks and closes the audio context.';
+  }
+}
+
+function getCaptureFailureState(status: 'unclear' | 'timeout' | 'error'): PracticeFlowState {
+  if (status === 'timeout') {
+    return markCaptureTimeout();
+  }
+
+  if (status === 'error') {
+    return markCaptureError();
+  }
+
+  return markUnclearInput();
 }
 
 function formatComparisonSummary(direction: SemitoneDirection, semitones: number): string {
@@ -90,6 +123,7 @@ export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFrom
   const captureAttemptRef = useRef(0);
   const pianoCaptureAttemptRef = useRef(0);
   const statusText = getStatusText(practiceState);
+  const statusHelpText = getStatusHelpText(practiceState);
 
   function recordDiagnostic(input: Omit<RecordDiagnosticEventInput, 'run'>) {
     diagnostics.record({ run: diagnosticRun, ...input });
@@ -236,7 +270,7 @@ export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFrom
         return;
       }
 
-      setPracticeState(markUnclearInput());
+      setPracticeState(getCaptureFailureState(result.status));
     } finally {
       if (captureAttemptRef.current === captureAttempt) {
         setIsCapturingSungNote(false);
@@ -272,7 +306,7 @@ export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFrom
         return;
       }
 
-      setPracticeState(markUnclearInput());
+      setPracticeState(getCaptureFailureState(result.status));
     } finally {
       if (pianoCaptureAttemptRef.current === captureAttempt) {
         setIsCapturingPianoNote(false);
@@ -393,6 +427,8 @@ export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFrom
 
         {practiceState.phase === 'pianoCompared' ||
           practiceState.phase === 'unclearInput' ||
+          practiceState.phase === 'captureTimeout' ||
+          practiceState.phase === 'captureError' ||
           practiceState.phase === 'permissionDenied' ||
           practiceState.phase === 'unsupported' ? (
           <button
@@ -412,7 +448,7 @@ export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFrom
           </p>
         ) : null}
 
-        <p className="microcopy">{statusText}. Capture listens briefly, then stops microphone tracks and closes the audio context.</p>
+        <p className="microcopy">{statusText}. {statusHelpText}</p>
 
         <section className="diagnostics-panel" aria-label="Diagnostics export">
           <button className="diagnostics-action" type="button" onClick={exportDiagnostics}>

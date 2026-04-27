@@ -16,6 +16,7 @@ This repo currently contains:
 - Structured diagnostic JSONL export for debugging audio runs.
 - Monophonic sung-note capture using Web Audio and an MVP autocorrelation detector.
 - Monophonic piano-note capture through the same microphone path after a sung note is captured.
+- Longer capture window with clearer timeout and microphone-failure guidance.
 - Immediate semitone comparison feedback for match, higher, lower, and unclear piano input.
 - GitHub Pages deployment workflow.
 
