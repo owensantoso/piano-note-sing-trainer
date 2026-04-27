@@ -65,8 +65,8 @@ export type CaptureSungNoteOptions = {
 
 const DEFAULT_MIN_CONFIDENCE = 0.8;
 const DEFAULT_STABLE_FRAME_COUNT = 3;
-const DEFAULT_MAX_FRAMES = 180;
-const DEFAULT_MAX_CAPTURE_MS = 4_000;
+const DEFAULT_MAX_FRAMES = 480;
+const DEFAULT_MAX_CAPTURE_MS = 8_000;
 
 export function createStablePitchCapture({
   minConfidence = DEFAULT_MIN_CONFIDENCE,

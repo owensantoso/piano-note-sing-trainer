@@ -44,15 +44,15 @@ function getStatusText(state: PracticeFlowState): string {
     case 'unsupported':
       return 'This browser does not support microphone practice';
     case 'singing':
-      return 'Ready to capture your sung note';
+      return 'Listening for your sung note';
     case 'singCaptured':
-      return `Captured ${state.sungNoteLabel}`;
+      return `Heard ${state.sungNoteLabel}; listening for piano`;
     case 'pianoCompared':
       return formatComparisonSummary(state.comparison.direction, state.comparison.semitones);
     case 'unclearInput':
       return 'I could not hear one clear note';
     case 'captureTimeout':
-      return 'Capture timed out before one stable note';
+      return 'Listening timed out before one stable note';
     case 'captureError':
       return 'Microphone capture failed';
     case 'idle':
@@ -65,11 +65,13 @@ function getStatusHelpText(state: PracticeFlowState): string {
     case 'permissionDenied':
       return 'Enable microphone permission for this site in your browser, then try again.';
     case 'captureTimeout':
-      return 'Tap capture, then sing or play one steady note right away for a few seconds.';
+      return 'Try again, then sing or play one steady note while the orb is listening.';
     case 'captureError':
       return 'Check mic permission, close other audio apps, reload, and export diagnostics if it repeats.';
     case 'singing':
-      return 'Tap capture when you are ready; the app listens for one steady note.';
+      return 'Sing one steady note now; capture happens automatically.';
+    case 'singCaptured':
+      return 'Play one piano note now; capture happens automatically.';
     default:
       return 'Capture listens briefly, then stops microphone tracks and closes the audio context.';
   }
@@ -129,14 +131,14 @@ export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFrom
     diagnostics.record({ run: diagnosticRun, ...input });
   }
 
-  function recordCaptureDiagnostic(event: SungNoteCaptureEvent, capturePhase: CapturePhase) {
+  function recordCaptureDiagnostic(event: SungNoteCaptureEvent, capturePhase: CapturePhase, phase: PracticeFlowState['phase']) {
     recordDiagnostic({
       level: event.type === 'capture_error' ? 'warn' : 'info',
       component: 'PracticePreview',
       operation: capturePhase === 'sung' ? 'capture_sung_note' : 'capture_piano_note',
       event: `${capturePhase}_note_capture.${event.type}`,
       eventKind: event.type === 'capture_start' ? 'start' : event.type === 'pitch_frame_summary' ? 'point' : 'end',
-      phase: practiceState.phase,
+      phase,
       outcome: event.type === 'capture_error'
         ? 'error'
         : event.type === 'capture_timeout'
@@ -246,10 +248,15 @@ export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFrom
           }
     });
 
-    setPracticeState(markMicPermission(permissionState, permission.granted));
+    const singingState = markMicPermission(permissionState, permission.granted);
+    setPracticeState(singingState);
+
+    if (singingState.phase === 'singing') {
+      await captureCurrentSungNote(singingState);
+    }
   }
 
-  async function captureCurrentSungNote() {
+  async function captureCurrentSungNote(singingState: Extract<PracticeFlowState, { phase: 'singing' }>) {
     if (isCapturingSungNote) {
       return;
     }
@@ -259,14 +266,22 @@ export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFrom
     setIsCapturingSungNote(true);
 
     try {
-      const result = await captureSungNoteFromMicrophone({ onEvent: (event) => recordCaptureDiagnostic(event, 'sung') });
+      const result = await captureSungNoteFromMicrophone({
+        onEvent: (event) => recordCaptureDiagnostic(event, 'sung', singingState.phase)
+      });
 
       if (captureAttemptRef.current !== captureAttempt) {
         return;
       }
 
       if (result.status === 'captured') {
-        setPracticeState(captureSungNote(practiceState, result.midiNote, result.noteLabel));
+        const sungState = captureSungNote(singingState, result.midiNote, result.noteLabel);
+        setPracticeState(sungState);
+
+        if (sungState.phase === 'singCaptured') {
+          await captureCurrentPianoNote(sungState);
+        }
+
         return;
       }
 
@@ -278,18 +293,19 @@ export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFrom
     }
   }
 
-  async function captureCurrentPianoNote() {
-    if (practiceState.phase !== 'singCaptured' || isCapturingPianoNote) {
+  async function captureCurrentPianoNote(capturedSungState: Extract<PracticeFlowState, { phase: 'singCaptured' }>) {
+    if (isCapturingPianoNote) {
       return;
     }
 
-    const capturedSungState = practiceState;
     const captureAttempt = pianoCaptureAttemptRef.current + 1;
     pianoCaptureAttemptRef.current = captureAttempt;
     setIsCapturingPianoNote(true);
 
     try {
-      const result = await captureSungNoteFromMicrophone({ onEvent: (event) => recordCaptureDiagnostic(event, 'piano') });
+      const result = await captureSungNoteFromMicrophone({
+        onEvent: (event) => recordCaptureDiagnostic(event, 'piano', capturedSungState.phase)
+      });
 
       if (pianoCaptureAttemptRef.current !== captureAttempt) {
         return;
@@ -312,14 +328,6 @@ export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFrom
         setIsCapturingPianoNote(false);
       }
     }
-  }
-
-  function markCurrentInputUnclear() {
-    captureAttemptRef.current += 1;
-    pianoCaptureAttemptRef.current += 1;
-    setIsCapturingSungNote(false);
-    setIsCapturingPianoNote(false);
-    setPracticeState(markUnclearInput());
   }
 
   async function exportDiagnostics() {
@@ -376,52 +384,10 @@ export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFrom
           </button>
         ) : null}
 
-        {practiceState.phase === 'singing' ? (
-          <div className="split-actions">
-            <button
-              className="primary-action"
-              type="button"
-              disabled={isCapturingSungNote}
-              onClick={() => {
-                void captureCurrentSungNote();
-              }}
-            >
-              {isCapturingSungNote ? 'Capturing sung note' : 'Capture sung note'}
-            </button>
-            <button
-              className="secondary-action"
-              type="button"
-              disabled={isCapturingSungNote}
-              onClick={markCurrentInputUnclear}
-            >
-              Mark unclear
-            </button>
-          </div>
-        ) : null}
-
-        {practiceState.phase === 'singCaptured' ? (
-          <div className="response-panel">
-            <p className="feedback-detail">Now play one piano note, then capture it.</p>
-            <div className="split-actions">
-            <button
-              className="primary-action"
-              type="button"
-              disabled={isCapturingPianoNote}
-              onClick={() => {
-                void captureCurrentPianoNote();
-              }}
-            >
-              {isCapturingPianoNote ? 'Capturing piano note' : 'Capture piano note'}
-            </button>
-            <button
-              className="secondary-action"
-              type="button"
-              disabled={isCapturingPianoNote}
-              onClick={markCurrentInputUnclear}
-            >
-              Mark unclear
-            </button>
-            </div>
+        {practiceState.phase === 'singing' || practiceState.phase === 'singCaptured' ? (
+          <div className="live-listener" aria-live="polite">
+            <span className="live-dot" aria-hidden="true" />
+            {isCapturingSungNote ? 'Listening for your voice' : 'Listening for your piano'}
           </div>
         ) : null}
 

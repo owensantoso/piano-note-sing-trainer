@@ -11,10 +11,10 @@ What is true today?
 - Test-first practice flow helpers exist for the voice-first microphone spike.
 - The start path performs browser microphone support detection and requests microphone permission when available.
 - The microphone permission slice stops granted media tracks immediately after permission probing.
-- After permission succeeds, the UI can start a monophonic sung-note capture using a microphone stream, Web Audio `AnalyserNode`, an MVP autocorrelation pitch detector, and stable MIDI-note frame reduction.
+- After permission succeeds, the UI automatically starts a rolling monophonic sung-note listener using a microphone stream, Web Audio `AnalyserNode`, an MVP autocorrelation pitch detector, and stable MIDI-note frame reduction.
 - Capture keeps listening for a longer default window, resumes suspended mobile audio contexts when possible, and distinguishes unclear input, timeout, and microphone/audio failure states in the UI.
 - Sung-note capture stops media tracks and closes or suspends the audio context after captured, unclear, timeout, or error outcomes.
-- After sung-note capture succeeds, the UI prompts for one piano note through the same microphone capture path.
+- After sung-note capture succeeds, the UI automatically rolls into listening for one piano note through the same microphone capture path.
 - The practice loop compares sung MIDI to played piano MIDI and shows match, higher, lower, or unclear feedback with semitone distance.
 - Browser-safe diagnostics foundation exists with structured redacted JSONL export from the UI.
 - Sung-note capture, piano-note capture, and piano comparison diagnostics exist with safe numeric/boolean-only attributes.

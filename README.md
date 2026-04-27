@@ -14,8 +14,8 @@ This repo currently contains:
 - Test-first note math utilities for frequency, MIDI note labels, and semitone feedback.
 - Browser microphone support and permission probing.
 - Structured diagnostic JSONL export for debugging audio runs.
-- Monophonic sung-note capture using Web Audio and an MVP autocorrelation detector.
-- Monophonic piano-note capture through the same microphone path after a sung note is captured.
+- Rolling monophonic sung-note capture using Web Audio and an MVP autocorrelation detector.
+- Rolling monophonic piano-note capture through the same microphone path after a sung note is captured.
 - Longer capture window with clearer timeout and microphone-failure guidance.
 - Immediate semitone comparison feedback for match, higher, lower, and unclear piano input.
 - GitHub Pages deployment workflow.
