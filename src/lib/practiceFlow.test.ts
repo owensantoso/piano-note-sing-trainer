@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  capturePianoNote,
   captureSungNote,
   markMicPermission,
   markMicSupport,
@@ -42,6 +43,51 @@ describe('practiceFlow', () => {
       phase: 'singCaptured',
       sungMidiNote: 60,
       sungNoteLabel: 'C4'
+    });
+  });
+
+  it('compares a matching piano note against the captured sung note', () => {
+    expect(capturePianoNote({ phase: 'singCaptured', sungMidiNote: 69, sungNoteLabel: 'A4' }, 69, 'A4')).toEqual({
+      phase: 'pianoCompared',
+      sungMidiNote: 69,
+      sungNoteLabel: 'A4',
+      playedMidiNote: 69,
+      playedNoteLabel: 'A4',
+      comparison: {
+        direction: 'match',
+        semitones: 0,
+        message: 'Same note.'
+      }
+    });
+  });
+
+  it('compares a higher piano note against the captured sung note', () => {
+    expect(capturePianoNote({ phase: 'singCaptured', sungMidiNote: 60, sungNoteLabel: 'C4' }, 62, 'D4')).toEqual({
+      phase: 'pianoCompared',
+      sungMidiNote: 60,
+      sungNoteLabel: 'C4',
+      playedMidiNote: 62,
+      playedNoteLabel: 'D4',
+      comparison: {
+        direction: 'higher',
+        semitones: 2,
+        message: 'Piano was 2 notes higher.'
+      }
+    });
+  });
+
+  it('compares a lower piano note against the captured sung note', () => {
+    expect(capturePianoNote({ phase: 'singCaptured', sungMidiNote: 64, sungNoteLabel: 'E4' }, 63, 'D#4')).toEqual({
+      phase: 'pianoCompared',
+      sungMidiNote: 64,
+      sungNoteLabel: 'E4',
+      playedMidiNote: 63,
+      playedNoteLabel: 'D#4',
+      comparison: {
+        direction: 'lower',
+        semitones: -1,
+        message: 'Piano was 1 note lower.'
+      }
     });
   });
 

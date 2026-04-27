@@ -15,9 +15,9 @@ This repo currently contains:
 - Browser microphone support and permission probing.
 - Structured diagnostic JSONL export for debugging audio runs.
 - Monophonic sung-note capture using Web Audio and an MVP autocorrelation detector.
+- Monophonic piano-note capture through the same microphone path after a sung note is captured.
+- Immediate semitone comparison feedback for match, higher, lower, and unclear piano input.
 - GitHub Pages deployment workflow.
-
-Piano note capture and semitone comparison are not implemented yet.
 
 ## Local Development
 

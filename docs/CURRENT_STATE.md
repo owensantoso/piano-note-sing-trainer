@@ -13,8 +13,10 @@ What is true today?
 - The microphone permission slice stops granted media tracks immediately after permission probing.
 - After permission succeeds, the UI can start a short monophonic sung-note capture using a microphone stream, Web Audio `AnalyserNode`, an MVP autocorrelation pitch detector, and stable MIDI-note frame reduction.
 - Sung-note capture stops media tracks and closes or suspends the audio context after captured, unclear, timeout, or error outcomes.
+- After sung-note capture succeeds, the UI prompts for one piano note through the same microphone capture path.
+- The practice loop compares sung MIDI to played piano MIDI and shows match, higher, lower, or unclear feedback with semitone distance.
 - Browser-safe diagnostics foundation exists with structured redacted JSONL export from the UI.
-- Sung-note capture diagnostics exist with safe numeric/boolean-only attributes.
+- Sung-note capture, piano-note capture, and piano comparison diagnostics exist with safe numeric/boolean-only attributes.
 - GitHub Pages deployment workflow exists.
 
 ## Important Paths
@@ -53,4 +55,4 @@ What is true today?
 - Local Codex shell may need Homebrew Node first in `PATH` for Vite/Rollup native bindings.
 
 ## Next Best Step
-Manually verify sung-note capture on real phones in quiet and moderately noisy rooms, then implement piano note capture in a separate slice.
+Manually verify the full sing-then-piano microphone loop on real phones in quiet and moderately noisy rooms.

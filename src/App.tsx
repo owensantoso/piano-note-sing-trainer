@@ -5,13 +5,14 @@ import {
   microphoneAudioConstraints,
   requestMicrophonePermission
 } from './lib/microphone';
-import { midiToNoteLabel } from './lib/noteMath';
+import { midiToNoteLabel, type SemitoneDirection } from './lib/noteMath';
 import {
   captureSungNoteFromMicrophone as defaultCaptureSungNoteFromMicrophone,
   type CaptureSungNoteOptions,
   type SungNoteCaptureEvent
 } from './lib/pitchDetection';
 import {
+  capturePianoNote,
   captureSungNote,
   markMicPermission,
   markMicSupport,
@@ -24,6 +25,7 @@ const previewTargetNote = midiToNoteLabel(60);
 const requestedAudioConstraints = microphoneAudioConstraints.audio as MediaTrackConstraints;
 
 type CaptureSungNoteFromMicrophone = (options: CaptureSungNoteOptions) => ReturnType<typeof defaultCaptureSungNoteFromMicrophone>;
+type CapturePhase = 'sung' | 'piano';
 
 export interface AppProps {
   captureSungNoteFromMicrophone?: CaptureSungNoteFromMicrophone;
@@ -43,11 +45,36 @@ function getStatusText(state: PracticeFlowState): string {
       return 'Listening for your sung note';
     case 'singCaptured':
       return `Captured ${state.sungNoteLabel}`;
+    case 'pianoCompared':
+      return formatComparisonSummary(state.comparison.direction, state.comparison.semitones);
     case 'unclearInput':
       return 'I could not hear one clear note';
     case 'idle':
       return 'Ready for a voice-first practice run';
   }
+}
+
+function formatComparisonSummary(direction: SemitoneDirection, semitones: number): string {
+  const absoluteDistance = Math.abs(semitones);
+  const semitoneWord = absoluteDistance === 1 ? 'semitone' : 'semitones';
+
+  if (direction === 'match') {
+    return 'Match: 0 semitones';
+  }
+
+  return `${direction === 'higher' ? 'Higher' : 'Lower'} by ${absoluteDistance} ${semitoneWord}`;
+}
+
+function getDisplayedNoteLabel(state: PracticeFlowState): string {
+  if (state.phase === 'singCaptured') {
+    return state.sungNoteLabel;
+  }
+
+  if (state.phase === 'pianoCompared') {
+    return state.playedNoteLabel;
+  }
+
+  return previewTargetNote;
 }
 
 export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFromMicrophone }: AppProps = {}) {
@@ -59,19 +86,21 @@ export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFrom
   const [practiceState, setPracticeState] = useState<PracticeFlowState>({ phase: 'idle' });
   const [diagnosticsText, setDiagnosticsText] = useState('');
   const [isCapturingSungNote, setIsCapturingSungNote] = useState(false);
+  const [isCapturingPianoNote, setIsCapturingPianoNote] = useState(false);
   const captureAttemptRef = useRef(0);
+  const pianoCaptureAttemptRef = useRef(0);
   const statusText = getStatusText(practiceState);
 
   function recordDiagnostic(input: Omit<RecordDiagnosticEventInput, 'run'>) {
     diagnostics.record({ run: diagnosticRun, ...input });
   }
 
-  function recordCaptureDiagnostic(event: SungNoteCaptureEvent) {
+  function recordCaptureDiagnostic(event: SungNoteCaptureEvent, capturePhase: CapturePhase) {
     recordDiagnostic({
       level: event.type === 'capture_error' ? 'warn' : 'info',
       component: 'PracticePreview',
-      operation: 'capture_sung_note',
-      event: `sung_note_capture.${event.type}`,
+      operation: capturePhase === 'sung' ? 'capture_sung_note' : 'capture_piano_note',
+      event: `${capturePhase}_note_capture.${event.type}`,
       eventKind: event.type === 'capture_start' ? 'start' : event.type === 'pitch_frame_summary' ? 'point' : 'end',
       phase: practiceState.phase,
       outcome: event.type === 'capture_error'
@@ -80,6 +109,26 @@ export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFrom
           ? 'unknown'
           : 'ok',
       attrs: event.attrs
+    });
+  }
+
+  function recordComparisonDiagnostic(state: Extract<PracticeFlowState, { phase: 'pianoCompared' }>) {
+    recordDiagnostic({
+      level: 'info',
+      component: 'PracticePreview',
+      operation: 'compare_piano_to_sung_note',
+      event: 'piano_note_comparison.finished',
+      eventKind: 'end',
+      phase: state.phase,
+      outcome: 'ok',
+      attrs: {
+        sung_midi_note: state.sungMidiNote,
+        played_midi_note: state.playedMidiNote,
+        semitone_distance: state.comparison.semitones,
+        is_match: state.comparison.direction === 'match',
+        is_higher: state.comparison.direction === 'higher',
+        is_lower: state.comparison.direction === 'lower'
+      }
     });
   }
 
@@ -176,7 +225,7 @@ export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFrom
     setIsCapturingSungNote(true);
 
     try {
-      const result = await captureSungNoteFromMicrophone({ onEvent: recordCaptureDiagnostic });
+      const result = await captureSungNoteFromMicrophone({ onEvent: (event) => recordCaptureDiagnostic(event, 'sung') });
 
       if (captureAttemptRef.current !== captureAttempt) {
         return;
@@ -195,9 +244,47 @@ export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFrom
     }
   }
 
+  async function captureCurrentPianoNote() {
+    if (practiceState.phase !== 'singCaptured' || isCapturingPianoNote) {
+      return;
+    }
+
+    const capturedSungState = practiceState;
+    const captureAttempt = pianoCaptureAttemptRef.current + 1;
+    pianoCaptureAttemptRef.current = captureAttempt;
+    setIsCapturingPianoNote(true);
+
+    try {
+      const result = await captureSungNoteFromMicrophone({ onEvent: (event) => recordCaptureDiagnostic(event, 'piano') });
+
+      if (pianoCaptureAttemptRef.current !== captureAttempt) {
+        return;
+      }
+
+      if (result.status === 'captured') {
+        const comparedState = capturePianoNote(capturedSungState, result.midiNote, result.noteLabel);
+        setPracticeState(comparedState);
+
+        if (comparedState.phase === 'pianoCompared') {
+          recordComparisonDiagnostic(comparedState);
+        }
+
+        return;
+      }
+
+      setPracticeState(markUnclearInput());
+    } finally {
+      if (pianoCaptureAttemptRef.current === captureAttempt) {
+        setIsCapturingPianoNote(false);
+      }
+    }
+  }
+
   function markCurrentInputUnclear() {
     captureAttemptRef.current += 1;
+    pianoCaptureAttemptRef.current += 1;
     setIsCapturingSungNote(false);
+    setIsCapturingPianoNote(false);
     setPracticeState(markUnclearInput());
   }
 
@@ -239,7 +326,7 @@ export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFrom
           </div>
           <div className="note-orb" data-phase={practiceState.phase}>
             <span className="note-label">
-              {practiceState.phase === 'singCaptured' ? practiceState.sungNoteLabel : previewTargetNote}
+              {getDisplayedNoteLabel(practiceState)}
             </span>
             <span className="note-caption">{statusText}</span>
           </div>
@@ -276,7 +363,33 @@ export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFrom
           </div>
         ) : null}
 
-        {practiceState.phase === 'singCaptured' ||
+        {practiceState.phase === 'singCaptured' ? (
+          <div className="response-panel">
+            <p className="feedback-detail">Now play one piano note, then capture it.</p>
+            <div className="split-actions">
+            <button
+              className="primary-action"
+              type="button"
+              disabled={isCapturingPianoNote}
+              onClick={() => {
+                void captureCurrentPianoNote();
+              }}
+            >
+              {isCapturingPianoNote ? 'Capturing piano note' : 'Capture piano note'}
+            </button>
+            <button
+              className="secondary-action"
+              type="button"
+              disabled={isCapturingPianoNote}
+              onClick={markCurrentInputUnclear}
+            >
+              Mark unclear
+            </button>
+            </div>
+          </div>
+        ) : null}
+
+        {practiceState.phase === 'pianoCompared' ||
           practiceState.phase === 'unclearInput' ||
           practiceState.phase === 'permissionDenied' ||
           practiceState.phase === 'unsupported' ? (
@@ -289,6 +402,12 @@ export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFrom
           >
             Try again
           </button>
+        ) : null}
+
+        {practiceState.phase === 'pianoCompared' ? (
+          <p className="feedback-detail">
+            Sang {practiceState.sungNoteLabel}, played {practiceState.playedNoteLabel}.
+          </p>
         ) : null}
 
         <p className="microcopy">{statusText}. Capture listens briefly, then stops microphone tracks and closes the audio context.</p>

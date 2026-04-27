@@ -1,3 +1,5 @@
+import { compareSemitoneDistance, type SemitoneFeedback } from './noteMath';
+
 export type PracticeFlowState =
   | { phase: 'idle' }
   | { phase: 'checkingSupport' }
@@ -6,6 +8,14 @@ export type PracticeFlowState =
   | { phase: 'unsupported' }
   | { phase: 'singing' }
   | { phase: 'singCaptured'; sungMidiNote: number; sungNoteLabel: string }
+  | {
+      phase: 'pianoCompared';
+      sungMidiNote: number;
+      sungNoteLabel: string;
+      playedMidiNote: number;
+      playedNoteLabel: string;
+      comparison: SemitoneFeedback;
+    }
   | { phase: 'unclearInput' };
 
 export function startPracticeFlow(): PracticeFlowState {
@@ -37,6 +47,21 @@ export function captureSungNote(
     phase: 'singCaptured',
     sungMidiNote,
     sungNoteLabel
+  };
+}
+
+export function capturePianoNote(
+  state: Extract<PracticeFlowState, { phase: 'singCaptured' }>,
+  playedMidiNote: number,
+  playedNoteLabel: string
+): PracticeFlowState {
+  return {
+    phase: 'pianoCompared',
+    sungMidiNote: state.sungMidiNote,
+    sungNoteLabel: state.sungNoteLabel,
+    playedMidiNote,
+    playedNoteLabel,
+    comparison: compareSemitoneDistance(state.sungMidiNote, playedMidiNote)
   };
 }
 
