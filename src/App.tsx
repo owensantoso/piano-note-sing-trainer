@@ -1,8 +1,48 @@
+import { useState } from 'react';
 import { midiToNoteLabel } from './lib/noteMath';
+import {
+  captureSungNote,
+  markMicPermission,
+  markMicSupport,
+  markUnclearInput,
+  retryPracticeFlow,
+  startPracticeFlow,
+  type PracticeFlowState
+} from './lib/practiceFlow';
 
 const previewTargetNote = midiToNoteLabel(60);
 
+function getStatusText(state: PracticeFlowState): string {
+  switch (state.phase) {
+    case 'checkingSupport':
+      return 'Checking microphone support';
+    case 'requestingPermission':
+      return 'Requesting microphone permission';
+    case 'permissionDenied':
+      return 'Microphone permission was denied';
+    case 'unsupported':
+      return 'This browser does not support microphone practice';
+    case 'singing':
+      return 'Listening for your sung note';
+    case 'singCaptured':
+      return `Captured ${state.sungNoteLabel}`;
+    case 'unclearInput':
+      return 'I could not hear one clear note';
+    case 'idle':
+      return 'Ready for a voice-first practice run';
+  }
+}
+
 export function App() {
+  const [practiceState, setPracticeState] = useState<PracticeFlowState>({ phase: 'idle' });
+  const statusText = getStatusText(practiceState);
+
+  function simulateStartPractice() {
+    const checkingState = startPracticeFlow();
+    const permissionState = markMicSupport(checkingState, true);
+    setPracticeState(markMicPermission(permissionState, true));
+  }
+
   return (
     <main className="app-shell" aria-labelledby="app-title">
       <section className="hero-panel" aria-label="Practice preview">
@@ -18,16 +58,52 @@ export function App() {
             <span className="pitch-line pitch-line-target" />
             <span className="pitch-line pitch-line-low" />
           </div>
-          <div className="note-orb">
-            <span className="note-label">{previewTargetNote}</span>
-            <span className="note-caption">Target note preview</span>
+          <div className="note-orb" data-phase={practiceState.phase}>
+            <span className="note-label">
+              {practiceState.phase === 'singCaptured' ? practiceState.sungNoteLabel : previewTargetNote}
+            </span>
+            <span className="note-caption">{statusText}</span>
           </div>
         </div>
       </section>
 
       <section className="control-belt" aria-label="Practice controls">
-        <button className="primary-action" type="button">Start practice</button>
-        <p className="microcopy">Microphone capture is coming next. No audio is recorded in this baseline.</p>
+        {practiceState.phase === 'idle' ? (
+          <button className="primary-action" type="button" onClick={simulateStartPractice}>
+            Start practice
+          </button>
+        ) : null}
+
+        {practiceState.phase === 'singing' ? (
+          <div className="split-actions">
+            <button
+              className="primary-action"
+              type="button"
+              onClick={() => setPracticeState(captureSungNote(practiceState, 60, 'C4'))}
+            >
+              Capture demo C4
+            </button>
+            <button
+              className="secondary-action"
+              type="button"
+              onClick={() => setPracticeState(markUnclearInput())}
+            >
+              Mark unclear
+            </button>
+          </div>
+        ) : null}
+
+        {practiceState.phase === 'singCaptured' || practiceState.phase === 'unclearInput' ? (
+          <button
+            className="primary-action"
+            type="button"
+            onClick={() => setPracticeState(retryPracticeFlow())}
+          >
+            Try again
+          </button>
+        ) : null}
+
+        <p className="microcopy">{statusText}. Real microphone capture is the next spike; this preview uses demo transitions only.</p>
       </section>
     </main>
   );

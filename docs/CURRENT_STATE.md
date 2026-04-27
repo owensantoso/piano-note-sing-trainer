@@ -8,14 +8,19 @@ What is true today?
 - Vite + React + TypeScript app baseline exists.
 - Mobile-first static practice preview exists.
 - Test-first note math utilities exist for frequency-to-MIDI, MIDI note labels, and semitone distance feedback.
+- Test-first practice flow helpers exist for the voice-first microphone spike.
+- The static UI can simulate start, captured-note, unclear-input, and retry states without real microphone access.
 - GitHub Pages deployment workflow exists.
 
 ## Important Paths
 - `README.md` - public repo overview and local commands.
 - `.github/workflows/deploy-pages.yml` - GitHub Pages deployment workflow.
 - `src/App.tsx` - static mobile practice preview.
+- `src/App.test.tsx` - UI state preview test.
 - `src/lib/noteMath.ts` - note math utilities.
 - `src/lib/noteMath.test.ts` - note math tests.
+- `src/lib/practiceFlow.ts` - voice-first practice state helpers.
+- `src/lib/practiceFlow.test.ts` - practice flow tests.
 - `docs/decisions/0001-mvp-audio-input-strategy.md` - accepted MVP audio input decision.
 - `docs/plans/PRODUCT_BRIEF.md` - MVP product scope.
 - `docs/plans/UX_DESIGN_PLAN.md` - mobile-first design direction.
@@ -39,4 +44,4 @@ What is true today?
 - Local Codex shell may need Homebrew Node first in `PATH` for Vite/Rollup native bindings.
 
 ## Next Best Step
-Implement the microphone capture spike with tests around permission and pitch-state helpers, then manually verify on real phones.
+Implement real microphone support detection and permission requests behind the existing practice state flow, then manually verify on real phones.

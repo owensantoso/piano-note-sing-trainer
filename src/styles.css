@@ -126,6 +126,18 @@ h1 {
   animation: breathe 4s ease-in-out infinite;
 }
 
+.note-orb[data-phase='singing'] {
+  background: radial-gradient(circle at 35% 30%, #fffdfa, #bfdde0 45%, #2f6f7f 100%);
+}
+
+.note-orb[data-phase='singCaptured'] {
+  background: radial-gradient(circle at 35% 30%, #fffdfa, #f3d89a 45%, #c99543 100%);
+}
+
+.note-orb[data-phase='unclearInput'] {
+  background: radial-gradient(circle at 35% 30%, #fffdfa, #e0c0a5 45%, #7e4a34 100%);
+}
+
 .note-label {
   font-size: clamp(4rem, 22vw, 7rem);
   font-weight: 900;
@@ -164,6 +176,29 @@ h1 {
 }
 
 .primary-action:focus-visible {
+  outline: 4px solid rgba(47, 111, 127, 0.45);
+  outline-offset: 4px;
+}
+
+.split-actions {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr;
+}
+
+.secondary-action {
+  min-height: 3.25rem;
+  border: 1px solid rgba(79, 47, 31, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 248, 235, 0.72);
+  color: var(--walnut);
+  cursor: pointer;
+  font-family: Avenir Next, Verdana, sans-serif;
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.secondary-action:focus-visible {
   outline: 4px solid rgba(47, 111, 127, 0.45);
   outline-offset: 4px;
 }
