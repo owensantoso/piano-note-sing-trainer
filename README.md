@@ -10,11 +10,14 @@ This repo currently contains:
 
 - Product, UX, technical, implementation, and validation planning docs.
 - A Vite + React + TypeScript app baseline.
-- A mobile-first static practice preview.
+- A mobile-first practice preview.
 - Test-first note math utilities for frequency, MIDI note labels, and semitone feedback.
+- Browser microphone support and permission probing.
+- Structured diagnostic JSONL export for debugging audio runs.
+- Monophonic sung-note capture using Web Audio and an MVP autocorrelation detector.
 - GitHub Pages deployment workflow.
 
-Microphone capture and pitch detection are intentionally not implemented yet.
+Piano note capture and semitone comparison are not implemented yet.
 
 ## Local Development
 

@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
+import type { CaptureSungNoteOptions } from './lib/pitchDetection';
 
 type MockMediaDevices = Partial<Pick<MediaDevices, 'getUserMedia'>>;
 
@@ -34,7 +35,7 @@ describe('App practice state preview', () => {
     setMockMediaDevices(undefined);
   });
 
-  it('requests browser microphone permission and moves into the singing state', async () => {
+  it('requests browser microphone permission and offers real sung note capture', async () => {
     const user = userEvent.setup();
     const { getUserMedia, stop } = mockGrantedMicrophone();
 
@@ -43,7 +44,7 @@ describe('App practice state preview', () => {
     await user.click(screen.getByRole('button', { name: /start practice/i }));
 
     expect(await screen.findByText('Listening for your sung note')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /capture demo c4/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /capture sung note/i })).toBeInTheDocument();
     expect(getUserMedia).toHaveBeenCalledWith({
       audio: {
         echoCancellation: false,
@@ -79,17 +80,88 @@ describe('App practice state preview', () => {
     expect(await screen.findByText('Microphone permission was denied')).toBeInTheDocument();
   });
 
-  it('shows a captured sung note in the practice arena after permission succeeds', async () => {
+  it('shows a captured sung note in the practice arena after real sung-note capture succeeds', async () => {
     const user = userEvent.setup();
     mockGrantedMicrophone();
+    const captureSungNoteFromMicrophone = vi.fn(async () => ({
+      status: 'captured' as const,
+      midiNote: 69,
+      noteLabel: 'A4'
+    }));
 
-    render(<App />);
+    render(<App captureSungNoteFromMicrophone={captureSungNoteFromMicrophone} />);
 
     await user.click(screen.getByRole('button', { name: /start practice/i }));
-    await user.click(await screen.findByRole('button', { name: /capture demo c4/i }));
+    await user.click(await screen.findByRole('button', { name: /capture sung note/i }));
 
-    expect(screen.getByText('Captured C4')).toBeInTheDocument();
+    expect(screen.getByText('Captured A4')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
+  });
+
+  it('keeps the fallback unclear path when sung-note capture cannot stabilize', async () => {
+    const user = userEvent.setup();
+    mockGrantedMicrophone();
+    const captureSungNoteFromMicrophone = vi.fn(async () => ({ status: 'unclear' as const }));
+
+    render(<App captureSungNoteFromMicrophone={captureSungNoteFromMicrophone} />);
+
+    await user.click(screen.getByRole('button', { name: /start practice/i }));
+    await user.click(await screen.findByRole('button', { name: /capture sung note/i }));
+
+    expect(screen.getByText('I could not hear one clear note')).toBeInTheDocument();
+  });
+
+
+
+  it('ignores repeated sung-note capture taps while a capture is already running', async () => {
+    const user = userEvent.setup();
+    mockGrantedMicrophone();
+    let resolveCapture: (value: { status: 'unclear' }) => void = () => undefined;
+    const captureSungNoteFromMicrophone = vi.fn(
+      () => new Promise<{ status: 'unclear' }>((resolve) => {
+        resolveCapture = resolve;
+      })
+    );
+
+    render(<App captureSungNoteFromMicrophone={captureSungNoteFromMicrophone} />);
+
+    await user.click(screen.getByRole('button', { name: /start practice/i }));
+    const captureButton = await screen.findByRole('button', { name: /capture sung note/i });
+
+    await user.click(captureButton);
+    await user.click(captureButton);
+
+    expect(captureSungNoteFromMicrophone).toHaveBeenCalledTimes(1);
+    expect(captureButton).toBeDisabled();
+
+    resolveCapture({ status: 'unclear' });
+    await screen.findByText('I could not hear one clear note');
+  });
+
+
+
+  it('disables competing sung-note actions while capture is already running', async () => {
+    const user = userEvent.setup();
+    mockGrantedMicrophone();
+    let resolveCapture: (value: { status: 'captured'; midiNote: number; noteLabel: string }) => void = () => undefined;
+    const captureSungNoteFromMicrophone = vi.fn(
+      () => new Promise<{ status: 'captured'; midiNote: number; noteLabel: string }>((resolve) => {
+        resolveCapture = resolve;
+      })
+    );
+
+    render(<App captureSungNoteFromMicrophone={captureSungNoteFromMicrophone} />);
+
+    await user.click(screen.getByRole('button', { name: /start practice/i }));
+    await user.click(await screen.findByRole('button', { name: /capture sung note/i }));
+
+    expect(screen.getByRole('button', { name: /capturing sung note/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /mark unclear/i })).toBeDisabled();
+
+    resolveCapture({ status: 'captured', midiNote: 69, noteLabel: 'A4' });
+
+    expect(await screen.findByText('Captured A4')).toBeInTheDocument();
+    expect(captureSungNoteFromMicrophone).toHaveBeenCalledTimes(1);
   });
 
   it('re-enters microphone permission flow when trying again after unclear input', async () => {
@@ -187,6 +259,54 @@ describe('App practice state preview', () => {
         attrs: { event_count_before_export: 5 }
       })
     ]);
+  });
+
+  it('records safe diagnostics for a sung-note capture attempt', async () => {
+    const user = userEvent.setup();
+    mockGrantedMicrophone();
+    const captureSungNoteFromMicrophone = vi.fn(
+      async ({ onEvent }: CaptureSungNoteOptions) => {
+        onEvent?.({ type: 'capture_start', attrs: { max_frames: 8, stable_frame_count: 3 } });
+        onEvent?.({ type: 'stream_opened', attrs: { track_count: 1 } });
+        onEvent?.({ type: 'audio_context_created', attrs: { sample_rate: 44_100, fft_size: 2048 } });
+        onEvent?.({ type: 'pitch_frame_summary', attrs: { accepted_frame_count: 3, rejected_frame_count: 1 } });
+        onEvent?.({ type: 'capture_finished', attrs: { captured: true, midi_note: 69, timed_out: false } });
+
+        return { status: 'captured' as const, midiNote: 69, noteLabel: 'A4' };
+      }
+    );
+
+    render(<App captureSungNoteFromMicrophone={captureSungNoteFromMicrophone} />);
+
+    await user.click(screen.getByRole('button', { name: /start practice/i }));
+    await user.click(await screen.findByRole('button', { name: /capture sung note/i }));
+
+    const events = await exportDiagnosticEvents(user);
+
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event: 'sung_note_capture.capture_start',
+          attrs: { max_frames: 8, stable_frame_count: 3 }
+        }),
+        expect.objectContaining({
+          event: 'sung_note_capture.stream_opened',
+          attrs: { track_count: 1 }
+        }),
+        expect.objectContaining({
+          event: 'sung_note_capture.audio_context_created',
+          attrs: { sample_rate: 44_100, fft_size: 2048 }
+        }),
+        expect.objectContaining({
+          event: 'sung_note_capture.pitch_frame_summary',
+          attrs: { accepted_frame_count: 3, rejected_frame_count: 1 }
+        }),
+        expect.objectContaining({
+          event: 'sung_note_capture.capture_finished',
+          attrs: { captured: true, midi_note: 69, timed_out: false }
+        })
+      ])
+    );
   });
 
   it('records denied microphone permission as a redacted diagnostic error', async () => {

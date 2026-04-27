@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { createDiagnostics, type RecordDiagnosticEventInput } from './lib/diagnostics';
 import {
   checkMicrophoneSupport,
@@ -6,6 +6,11 @@ import {
   requestMicrophonePermission
 } from './lib/microphone';
 import { midiToNoteLabel } from './lib/noteMath';
+import {
+  captureSungNoteFromMicrophone as defaultCaptureSungNoteFromMicrophone,
+  type CaptureSungNoteOptions,
+  type SungNoteCaptureEvent
+} from './lib/pitchDetection';
 import {
   captureSungNote,
   markMicPermission,
@@ -17,6 +22,12 @@ import {
 
 const previewTargetNote = midiToNoteLabel(60);
 const requestedAudioConstraints = microphoneAudioConstraints.audio as MediaTrackConstraints;
+
+type CaptureSungNoteFromMicrophone = (options: CaptureSungNoteOptions) => ReturnType<typeof defaultCaptureSungNoteFromMicrophone>;
+
+export interface AppProps {
+  captureSungNoteFromMicrophone?: CaptureSungNoteFromMicrophone;
+}
 
 function getStatusText(state: PracticeFlowState): string {
   switch (state.phase) {
@@ -39,7 +50,7 @@ function getStatusText(state: PracticeFlowState): string {
   }
 }
 
-export function App() {
+export function App({ captureSungNoteFromMicrophone = defaultCaptureSungNoteFromMicrophone }: AppProps = {}) {
   const diagnostics = useMemo(() => createDiagnostics(), []);
   const diagnosticRun = useMemo(
     () => diagnostics.createRun({ diagId: 'DIAG-voice-mic-ready' }),
@@ -47,10 +58,29 @@ export function App() {
   );
   const [practiceState, setPracticeState] = useState<PracticeFlowState>({ phase: 'idle' });
   const [diagnosticsText, setDiagnosticsText] = useState('');
+  const [isCapturingSungNote, setIsCapturingSungNote] = useState(false);
+  const captureAttemptRef = useRef(0);
   const statusText = getStatusText(practiceState);
 
   function recordDiagnostic(input: Omit<RecordDiagnosticEventInput, 'run'>) {
     diagnostics.record({ run: diagnosticRun, ...input });
+  }
+
+  function recordCaptureDiagnostic(event: SungNoteCaptureEvent) {
+    recordDiagnostic({
+      level: event.type === 'capture_error' ? 'warn' : 'info',
+      component: 'PracticePreview',
+      operation: 'capture_sung_note',
+      event: `sung_note_capture.${event.type}`,
+      eventKind: event.type === 'capture_start' ? 'start' : event.type === 'pitch_frame_summary' ? 'point' : 'end',
+      phase: practiceState.phase,
+      outcome: event.type === 'capture_error'
+        ? 'error'
+        : event.type === 'capture_timeout'
+          ? 'unknown'
+          : 'ok',
+      attrs: event.attrs
+    });
   }
 
   async function startPractice() {
@@ -136,6 +166,41 @@ export function App() {
     setPracticeState(markMicPermission(permissionState, permission.granted));
   }
 
+  async function captureCurrentSungNote() {
+    if (isCapturingSungNote) {
+      return;
+    }
+
+    const captureAttempt = captureAttemptRef.current + 1;
+    captureAttemptRef.current = captureAttempt;
+    setIsCapturingSungNote(true);
+
+    try {
+      const result = await captureSungNoteFromMicrophone({ onEvent: recordCaptureDiagnostic });
+
+      if (captureAttemptRef.current !== captureAttempt) {
+        return;
+      }
+
+      if (result.status === 'captured') {
+        setPracticeState(captureSungNote(practiceState, result.midiNote, result.noteLabel));
+        return;
+      }
+
+      setPracticeState(markUnclearInput());
+    } finally {
+      if (captureAttemptRef.current === captureAttempt) {
+        setIsCapturingSungNote(false);
+      }
+    }
+  }
+
+  function markCurrentInputUnclear() {
+    captureAttemptRef.current += 1;
+    setIsCapturingSungNote(false);
+    setPracticeState(markUnclearInput());
+  }
+
   async function exportDiagnostics() {
     recordDiagnostic({
       level: 'info',
@@ -193,14 +258,18 @@ export function App() {
             <button
               className="primary-action"
               type="button"
-              onClick={() => setPracticeState(captureSungNote(practiceState, 60, 'C4'))}
+              disabled={isCapturingSungNote}
+              onClick={() => {
+                void captureCurrentSungNote();
+              }}
             >
-              Capture demo C4
+              {isCapturingSungNote ? 'Capturing sung note' : 'Capture sung note'}
             </button>
             <button
               className="secondary-action"
               type="button"
-              onClick={() => setPracticeState(markUnclearInput())}
+              disabled={isCapturingSungNote}
+              onClick={markCurrentInputUnclear}
             >
               Mark unclear
             </button>
@@ -222,7 +291,7 @@ export function App() {
           </button>
         ) : null}
 
-        <p className="microcopy">{statusText}. Microphone access is only used to confirm permission in this slice.</p>
+        <p className="microcopy">{statusText}. Capture listens briefly, then stops microphone tracks and closes the audio context.</p>
 
         <section className="diagnostics-panel" aria-label="Diagnostics export">
           <button className="diagnostics-action" type="button" onClick={exportDiagnostics}>

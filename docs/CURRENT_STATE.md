@@ -10,8 +10,11 @@ What is true today?
 - Test-first note math utilities exist for frequency-to-MIDI, MIDI note labels, and semitone distance feedback.
 - Test-first practice flow helpers exist for the voice-first microphone spike.
 - The start path performs browser microphone support detection and requests microphone permission when available.
-- The microphone permission slice stops granted media tracks immediately; pitch detection and real audio note capture are not implemented yet.
+- The microphone permission slice stops granted media tracks immediately after permission probing.
+- After permission succeeds, the UI can start a short monophonic sung-note capture using a microphone stream, Web Audio `AnalyserNode`, an MVP autocorrelation pitch detector, and stable MIDI-note frame reduction.
+- Sung-note capture stops media tracks and closes or suspends the audio context after captured, unclear, timeout, or error outcomes.
 - Browser-safe diagnostics foundation exists with structured redacted JSONL export from the UI.
+- Sung-note capture diagnostics exist with safe numeric/boolean-only attributes.
 - GitHub Pages deployment workflow exists.
 
 ## Important Paths
@@ -25,6 +28,8 @@ What is true today?
 - `src/lib/practiceFlow.test.ts` - practice flow tests.
 - `src/lib/diagnostics.ts` - structured diagnostics event recorder and JSONL export helper.
 - `src/lib/diagnostics.test.ts` - diagnostics event shape and export tests.
+- `src/lib/pitchDetection.ts` - sung-note pitch detector, stable capture reducer, and microphone/Web Audio capture coordinator.
+- `src/lib/pitchDetection.test.ts` - pitch detector, stable capture, and mocked Web Audio coordinator tests.
 - `docs/decisions/0001-mvp-audio-input-strategy.md` - accepted MVP audio input decision.
 - `docs/plans/PRODUCT_BRIEF.md` - MVP product scope.
 - `docs/plans/UX_DESIGN_PLAN.md` - mobile-first design direction.
@@ -42,10 +47,10 @@ What is true today?
 
 ## Current Risks
 - Mobile browser audio quirks, especially iOS Safari.
-- Pitch detection instability in noisy rooms.
+- Pitch detection instability in noisy rooms; the current detector is an MVP autocorrelation implementation.
 - Piano overtones causing octave or note errors.
 - Novel UI patterns becoming confusing if affordances are weak.
 - Local Codex shell may need Homebrew Node first in `PATH` for Vite/Rollup native bindings.
 
 ## Next Best Step
-Manually verify microphone support and permission behavior on real phones, then implement pitch detection in a separate slice.
+Manually verify sung-note capture on real phones in quiet and moderately noisy rooms, then implement piano note capture in a separate slice.
