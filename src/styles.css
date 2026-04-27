@@ -306,16 +306,24 @@ h1 {
   .note-orb {
     width: min(24vw, 15rem);
   }
+}
 
+@media (min-width: 980px) {
   .control-belt {
     grid-template-columns: minmax(16rem, 24rem) minmax(18rem, 1fr) auto;
     align-items: center;
     padding-top: 0;
   }
 
+  .control-belt > .primary-action,
   .split-actions,
   .response-panel {
     grid-column: 1 / 2;
+  }
+
+  .control-belt > .feedback-detail,
+  .control-belt > .microcopy {
+    grid-column: 2 / 3;
   }
 
   .microcopy,
@@ -324,6 +332,7 @@ h1 {
   }
 
   .diagnostics-panel {
+    grid-column: 3 / 4;
     justify-items: end;
   }
 }
