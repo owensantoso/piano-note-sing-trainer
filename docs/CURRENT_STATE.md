@@ -10,6 +10,7 @@ What is true today?
 - Test-first note math utilities exist for frequency-to-MIDI, MIDI note labels, and semitone distance feedback.
 - Test-first practice flow helpers exist for the voice-first microphone spike.
 - The static UI can simulate start, captured-note, unclear-input, and retry states without real microphone access.
+- Browser-safe diagnostics foundation exists with structured redacted JSONL export from the UI.
 - GitHub Pages deployment workflow exists.
 
 ## Important Paths
@@ -21,6 +22,8 @@ What is true today?
 - `src/lib/noteMath.test.ts` - note math tests.
 - `src/lib/practiceFlow.ts` - voice-first practice state helpers.
 - `src/lib/practiceFlow.test.ts` - practice flow tests.
+- `src/lib/diagnostics.ts` - structured diagnostics event recorder and JSONL export helper.
+- `src/lib/diagnostics.test.ts` - diagnostics event shape and export tests.
 - `docs/decisions/0001-mvp-audio-input-strategy.md` - accepted MVP audio input decision.
 - `docs/plans/PRODUCT_BRIEF.md` - MVP product scope.
 - `docs/plans/UX_DESIGN_PLAN.md` - mobile-first design direction.

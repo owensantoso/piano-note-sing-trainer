@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { createDiagnostics, type RecordDiagnosticEventInput } from './lib/diagnostics';
 import { midiToNoteLabel } from './lib/noteMath';
 import {
   captureSungNote,
@@ -34,13 +35,54 @@ function getStatusText(state: PracticeFlowState): string {
 }
 
 export function App() {
+  const diagnostics = useMemo(() => createDiagnostics(), []);
+  const diagnosticRun = useMemo(
+    () => diagnostics.createRun({ diagId: 'DIAG-voice-mic-ready' }),
+    [diagnostics]
+  );
   const [practiceState, setPracticeState] = useState<PracticeFlowState>({ phase: 'idle' });
+  const [diagnosticsText, setDiagnosticsText] = useState('');
   const statusText = getStatusText(practiceState);
 
+  function recordDiagnostic(input: Omit<RecordDiagnosticEventInput, 'run'>) {
+    diagnostics.record({ run: diagnosticRun, ...input });
+  }
+
   function simulateStartPractice() {
+    recordDiagnostic({
+      level: 'info',
+      component: 'PracticePreview',
+      operation: 'start_practice',
+      event: 'practice.started',
+      eventKind: 'start',
+      phase: 'idle',
+      outcome: 'ok',
+      attrs: { demo_transition: true }
+    });
     const checkingState = startPracticeFlow();
     const permissionState = markMicSupport(checkingState, true);
     setPracticeState(markMicPermission(permissionState, true));
+  }
+
+  async function exportDiagnostics() {
+    recordDiagnostic({
+      level: 'info',
+      component: 'DiagnosticsPanel',
+      operation: 'export_diagnostics',
+      event: 'diagnostics.exported',
+      eventKind: 'point',
+      phase: 'debug_export',
+      outcome: 'ok',
+      redaction: { safe_to_commit: false },
+      attrs: { event_count_before_export: diagnostics.getEvents().length }
+    });
+
+    const jsonl = diagnostics.exportJsonl();
+    setDiagnosticsText(jsonl);
+
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(jsonl).catch(() => undefined);
+    }
   }
 
   return (
@@ -104,6 +146,17 @@ export function App() {
         ) : null}
 
         <p className="microcopy">{statusText}. Real microphone capture is the next spike; this preview uses demo transitions only.</p>
+
+        <section className="diagnostics-panel" aria-label="Diagnostics export">
+          <button className="diagnostics-action" type="button" onClick={exportDiagnostics}>
+            Export diagnostics
+          </button>
+          {diagnosticsText ? (
+            <pre className="diagnostics-output" aria-label="Diagnostics JSONL">
+              {diagnosticsText}
+            </pre>
+          ) : null}
+        </section>
       </section>
     </main>
   );

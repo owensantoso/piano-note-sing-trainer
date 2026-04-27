@@ -41,4 +41,34 @@ describe('App practice state preview', () => {
 
     expect(screen.getByText('Checking microphone support')).toBeInTheDocument();
   });
+
+  it('lets a user export diagnostics JSONL from a small debug panel', async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: /start practice/i }));
+    await user.click(screen.getByRole('button', { name: /export diagnostics/i }));
+
+    const diagnosticsOutput = screen.getByLabelText(/diagnostics jsonl/i);
+    const events = (diagnosticsOutput.textContent ?? '').split('\n').map((line) => JSON.parse(line));
+
+    expect(events[0]).toMatchObject({
+      diag_id: 'DIAG-voice-mic-ready',
+      component: 'PracticePreview',
+      operation: 'start_practice',
+      event: 'practice.started',
+      event_kind: 'start',
+      redaction: {
+        contains_raw_user_content: false,
+        safe_to_commit: false
+      }
+    });
+    expect(events[1]).toMatchObject({
+      component: 'DiagnosticsPanel',
+      operation: 'export_diagnostics',
+      event: 'diagnostics.exported',
+      attrs: { event_count_before_export: 1 }
+    });
+  });
 });
