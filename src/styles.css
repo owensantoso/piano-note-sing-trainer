@@ -138,6 +138,11 @@ h1 {
   background: radial-gradient(circle at 35% 30%, #fffdfa, #e0c0a5 45%, #7e4a34 100%);
 }
 
+.note-orb[data-phase='permissionDenied'],
+.note-orb[data-phase='unsupported'] {
+  background: radial-gradient(circle at 35% 30%, #fffdfa, #deb6a7 45%, #7a3328 100%);
+}
+
 .note-label {
   font-size: clamp(4rem, 22vw, 7rem);
   font-weight: 900;

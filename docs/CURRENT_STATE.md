@@ -9,7 +9,8 @@ What is true today?
 - Mobile-first static practice preview exists.
 - Test-first note math utilities exist for frequency-to-MIDI, MIDI note labels, and semitone distance feedback.
 - Test-first practice flow helpers exist for the voice-first microphone spike.
-- The static UI can simulate start, captured-note, unclear-input, and retry states without real microphone access.
+- The start path performs browser microphone support detection and requests microphone permission when available.
+- The microphone permission slice stops granted media tracks immediately; pitch detection and real audio note capture are not implemented yet.
 - Browser-safe diagnostics foundation exists with structured redacted JSONL export from the UI.
 - GitHub Pages deployment workflow exists.
 
@@ -47,4 +48,4 @@ What is true today?
 - Local Codex shell may need Homebrew Node first in `PATH` for Vite/Rollup native bindings.
 
 ## Next Best Step
-Implement real microphone support detection and permission requests behind the existing practice state flow, then manually verify on real phones.
+Manually verify microphone support and permission behavior on real phones, then implement pitch detection in a separate slice.

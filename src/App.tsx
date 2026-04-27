@@ -1,17 +1,22 @@
 import { useMemo, useState } from 'react';
 import { createDiagnostics, type RecordDiagnosticEventInput } from './lib/diagnostics';
+import {
+  checkMicrophoneSupport,
+  microphoneAudioConstraints,
+  requestMicrophonePermission
+} from './lib/microphone';
 import { midiToNoteLabel } from './lib/noteMath';
 import {
   captureSungNote,
   markMicPermission,
   markMicSupport,
   markUnclearInput,
-  retryPracticeFlow,
   startPracticeFlow,
   type PracticeFlowState
 } from './lib/practiceFlow';
 
 const previewTargetNote = midiToNoteLabel(60);
+const requestedAudioConstraints = microphoneAudioConstraints.audio as MediaTrackConstraints;
 
 function getStatusText(state: PracticeFlowState): string {
   switch (state.phase) {
@@ -48,20 +53,87 @@ export function App() {
     diagnostics.record({ run: diagnosticRun, ...input });
   }
 
-  function simulateStartPractice() {
+  async function startPractice() {
     recordDiagnostic({
       level: 'info',
       component: 'PracticePreview',
       operation: 'start_practice',
-      event: 'practice.started',
-      eventKind: 'start',
-      phase: 'idle',
+      event: 'practice.start_clicked',
+      eventKind: 'point',
+      phase: practiceState.phase,
       outcome: 'ok',
-      attrs: { demo_transition: true }
+      attrs: { current_phase_idle: practiceState.phase === 'idle' }
     });
+
     const checkingState = startPracticeFlow();
-    const permissionState = markMicSupport(checkingState, true);
-    setPracticeState(markMicPermission(permissionState, true));
+    setPracticeState(checkingState);
+
+    recordDiagnostic({
+      level: 'info',
+      component: 'PracticePreview',
+      operation: 'start_practice',
+      event: 'microphone.support_check.started',
+      eventKind: 'start',
+      phase: checkingState.phase,
+      attrs: { browser_has_media_devices: Boolean(navigator.mediaDevices) }
+    });
+
+    const support = checkMicrophoneSupport();
+
+    recordDiagnostic({
+      level: support.supported ? 'info' : 'warn',
+      component: 'PracticePreview',
+      operation: 'start_practice',
+      event: 'microphone.support_check.finished',
+      eventKind: 'end',
+      phase: checkingState.phase,
+      outcome: support.supported ? 'ok' : 'unsupported',
+      attrs: {
+        browser_has_media_devices: support.hasMediaDevices,
+        browser_has_get_user_media: support.hasGetUserMedia
+      }
+    });
+
+    const permissionState = markMicSupport(checkingState, support.supported);
+    setPracticeState(permissionState);
+
+    if (permissionState.phase !== 'requestingPermission') {
+      return;
+    }
+
+    recordDiagnostic({
+      level: 'info',
+      component: 'PracticePreview',
+      operation: 'start_practice',
+      event: 'microphone.permission_request.started',
+      eventKind: 'start',
+      phase: permissionState.phase,
+      attrs: {
+        echo_cancellation: requestedAudioConstraints.echoCancellation as boolean,
+        noise_suppression: requestedAudioConstraints.noiseSuppression as boolean,
+        auto_gain_control: requestedAudioConstraints.autoGainControl as boolean
+      }
+    });
+
+    const permission = await requestMicrophonePermission();
+
+    recordDiagnostic({
+      level: permission.granted ? 'info' : 'warn',
+      component: 'PracticePreview',
+      operation: 'start_practice',
+      event: permission.granted ? 'microphone.permission_request.finished' : 'microphone.permission_request.error',
+      eventKind: 'end',
+      phase: permissionState.phase,
+      outcome: permission.granted ? 'ok' : permission.denied ? 'denied' : 'error',
+      attrs: permission.granted
+        ? { stopped_track_count: permission.stoppedTrackCount }
+        : {
+            is_denied_error: permission.denied,
+            stopped_track_count: permission.stoppedTrackCount
+          }
+    });
+
+    setPracticeState(markMicPermission(permissionState, permission.granted));
   }
 
   async function exportDiagnostics() {
@@ -111,7 +183,7 @@ export function App() {
 
       <section className="control-belt" aria-label="Practice controls">
         {practiceState.phase === 'idle' ? (
-          <button className="primary-action" type="button" onClick={simulateStartPractice}>
+          <button className="primary-action" type="button" onClick={startPractice}>
             Start practice
           </button>
         ) : null}
@@ -135,17 +207,22 @@ export function App() {
           </div>
         ) : null}
 
-        {practiceState.phase === 'singCaptured' || practiceState.phase === 'unclearInput' ? (
+        {practiceState.phase === 'singCaptured' ||
+          practiceState.phase === 'unclearInput' ||
+          practiceState.phase === 'permissionDenied' ||
+          practiceState.phase === 'unsupported' ? (
           <button
             className="primary-action"
             type="button"
-            onClick={() => setPracticeState(retryPracticeFlow())}
+            onClick={() => {
+              void startPractice();
+            }}
           >
             Try again
           </button>
         ) : null}
 
-        <p className="microcopy">{statusText}. Real microphone capture is the next spike; this preview uses demo transitions only.</p>
+        <p className="microcopy">{statusText}. Microphone access is only used to confirm permission in this slice.</p>
 
         <section className="diagnostics-panel" aria-label="Diagnostics export">
           <button className="diagnostics-action" type="button" onClick={exportDiagnostics}>
