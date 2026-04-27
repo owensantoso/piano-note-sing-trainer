@@ -3,10 +3,19 @@
 What is true today?
 
 ## Built
-- Documentation scaffold only.
-- No application code yet.
+- Public GitHub repository exists at `https://github.com/owensantoso/piano-note-sing-trainer`.
+- Documentation scaffold and MVP planning docs exist.
+- Vite + React + TypeScript app baseline exists.
+- Mobile-first static practice preview exists.
+- Test-first note math utilities exist for frequency-to-MIDI, MIDI note labels, and semitone distance feedback.
+- GitHub Pages deployment workflow exists.
 
 ## Important Paths
+- `README.md` - public repo overview and local commands.
+- `.github/workflows/deploy-pages.yml` - GitHub Pages deployment workflow.
+- `src/App.tsx` - static mobile practice preview.
+- `src/lib/noteMath.ts` - note math utilities.
+- `src/lib/noteMath.test.ts` - note math tests.
 - `docs/decisions/0001-mvp-audio-input-strategy.md` - accepted MVP audio input decision.
 - `docs/plans/PRODUCT_BRIEF.md` - MVP product scope.
 - `docs/plans/UX_DESIGN_PLAN.md` - mobile-first design direction.
@@ -20,12 +29,14 @@ What is true today?
 - Piano input is one note at a time through the microphone.
 - MIDI is a later enhancement because Web MIDI is not reliable enough for an iPhone-first MVP.
 - The primary UI should feel like a full-screen practice instrument, not a stack of cards.
+- The app is configured for GitHub Pages project hosting at `/piano-note-sing-trainer/`.
 
 ## Current Risks
 - Mobile browser audio quirks, especially iOS Safari.
 - Pitch detection instability in noisy rooms.
 - Piano overtones causing octave or note errors.
 - Novel UI patterns becoming confusing if affordances are weak.
+- Local Codex shell may need Homebrew Node first in `PATH` for Vite/Rollup native bindings.
 
 ## Next Best Step
-Create a small app baseline and run a microphone pitch-detection spike on real phones before investing in polish.
+Implement the microphone capture spike with tests around permission and pitch-state helpers, then manually verify on real phones.
